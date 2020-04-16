@@ -111,26 +111,54 @@ const gps_unit = new By2UART(signal_port, data_port, status, { echo: { command: 
 ```
 
 ### Write SSL Certificates
-HTTPS通信を行うのに必要です。（整備中）
-
-### Post Http(s) Request
-POSTメソッドでWebサーバーにデータを送信する。
-（実際に[Google][google]へアクセスすると8kb程度の通信が発生します。）
+各証明書は、再起動後も保持されます。
 
 ```node
-const { Status, By2UART } = require('lu1cm0xx');
+const fs = require('fs');
+const path = require('path');
+
+const { Status, By2UART, sleep } = require('lu1cm0xx');
 const config = require('./port_config.json');
 
 const status = new Status(config);
+const gps_unit = new By2UART(config.signal_uart, config.data_uart, status, { echo: true });
 
-const log = text => console.log(`[${new Date().toISOString()}] ${text}`);
+(async () => {
+    console.log('GPIOの初期化: ' + await status.wait().then(_ => _).catch(_ => _));
+    console.log('UARTの初期化: ' + await gps_unit.wait().then(_ => _).catch(_ => _));
+
+    // 既存の証明書を削除
+    console.log(await gps_unit.deleteCACertificates().catch(_ => _));
+    console.log(await gps_unit.deleteClientCertificates().catch(_ => _));
+    console.log(await gps_unit.deletePSKCertificates().catch(_ => _));
+
+    
+    const dir = './ca';
+    const files = fs.readdirSync(dir)
+                    .filter(x => x[0] != '.')
+                    .map(x => path.join(dir, x))
+                    .map(x => fs.readFileSync(x));
+                    
+    console.log(await gps_unit.writeCACertificates(files));
+    await sleep(500);
+
+    // 証明書を書き込んだ時は無線・位置情報取得が強制的にOFFになっていますので必要に応じて再開します。
+    await gps_unit.setRadioEnable(); 
+
+    await gps_unit.close();
+})();
 
 
-const print_pin_status_message = (value, pin) => log(pin.description[value + 0]);
+### Post Http(s) Request
+POSTメソッドでWebサーバーにデータを送信する。
+HTTPSで通信するためには、CA証明書を事前に書き込んでおく。
+（実際に[Google][google]へアクセスすると8kb程度の通信が発生します。）
 
-status.on('UART1_DCD', print_pin_status_message);
-status.on('RESET_CHK', print_pin_status_message);
+```node
+const { Status, By2UART, sleep } = require('lu1cm0xx');
+const config = require('./port_config.json');
 
+const status = new Status(config);
 const gps_unit = new By2UART(config.signal_uart, config.data_uart, status, { echo: true });
 
 (async () => {
@@ -144,14 +172,20 @@ const gps_unit = new By2UART(config.signal_uart, config.data_uart, status, { ech
     console.log(await gps_unit.getNetworkDatetime().catch(_ => _));
     console.log(await gps_unit.getUserDatetime().catch(_ => _));
 
-    console.log(await gps_unit.getSignalQuality().catch(_ => _));
-
-    console.log(await gps_unit.isRadioDisabled().catch(_ => _));
-    const temperature = await gps_unit.getTemperature().catch(_ => _);
 
     console.log(await gps_unit.getModelName().catch(_ => _));
     console.log(await gps_unit.getVersion().catch(_ => _));
     console.log(await gps_unit.getIMEI().catch(_ => 'IMEI取得エラー'));
+    
+    const temperature = await gps_unit.getTemperature().catch(_ => _);
+
+    await gps_unit.isRadioDisabled()
+                  .then(disabled => {
+                    if (disabled) return gps_unit.setRadioEnable();
+                  }).catch(_ => _));
+    await sleep(3000);
+    console.log(await gps_unit.getSignalQuality().catch(_ => _));
+
 
     console.log(await gps_unit.requestHttp('https://www.google.com', 'POST', {
         message:'Hello, world',
