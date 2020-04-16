@@ -1,6 +1,6 @@
 {
   "name": "lu1cm0xx",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "京セラ製GPSマルチユニット'LU1CM0xx'シリーズをUART2系統無手順接続にて扱うためのライブラリです。",
   "main": "index.js",
   "scripts": {
