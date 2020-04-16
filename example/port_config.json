@@ -1,0 +1,14 @@
+{
+	"UART1_DTR": 15,
+	"UART1_DCD": 16,
+	"TE_UP": 38,
+	"RESET_CHK": 40,
+
+	"PSM_DISABLE": 11,
+	"UART1_DSR": 12,
+	"FUNC_SW": 35,
+	"RESET": 36,
+	
+	"signal_uart": "/dev/ttyAMA1",
+	"data_uart": "/dev/ttyAMA2"
+}

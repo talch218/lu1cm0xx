@@ -1,0 +1,18 @@
+{
+  "name": "lu1cm0xx",
+  "version": "0.3.1",
+  "description": "京セラ製GPSマルチユニット'LU1CM0xx'シリーズをUART2系統無手順接続にて扱うためのライブラリです。",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./example/http.js",
+    "location": "node ./example/location.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "TAL",
+  "license": "MIT",
+  "dependencies": {
+    "@serialport/parser-readline": "^8.0.6",
+    "rpi-gpio": "^2.1.5",
+    "serialport": "^8.0.7"
+  }
+}
