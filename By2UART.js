@@ -43,7 +43,7 @@ const writeln = (port, cmd, callback) => {
 };
 
 const By2UART = class {
-	constructor(signal_port, data_port, status, option = { echo: true }) {
+	constructor(signal, data_port, status, option = { echo: true }) {
 		const echo = new Echo(['result', 'command', 'location'], option.echo);
 		Object.defineProperty(this, 'status', {
 			configurable: false,
@@ -59,7 +59,7 @@ const By2UART = class {
 			value: data_port,
 		});
 
-		const sport = new SerialPort(signal_port, {
+		const sport = new SerialPort(signal, {
 			baudRate: 9600,
 			dataBits: 8,
 			parity: 'none',
@@ -125,6 +125,7 @@ const By2UART = class {
 			sport.on('open', async err => {
 				if (err) {
 					error(err.message);
+					reject();
 					return;
 				}
 
@@ -234,7 +235,10 @@ const By2UART = class {
 					const cesq = data.match(
 						/\+CESQ: 99,99,255,255,([0-9]{2}),([0-9]{2}),([0-9]{2})/
 					);
-					if (!cesq) reject(`信号品質取得エラー: [${data}]`);
+					if (!cesq) {
+						reject(`信号品質取得エラー: [${data}]`);
+						return true;
+					}
 					const [_, rsrq, rsrp, sinr] = cesq.map(x => new Number(parseInt(x, 10)));
 
 					const rsrq_db_max = -19.5 + rsrq * 0.5;
@@ -705,6 +709,136 @@ const By2UART = class {
 			});
 			writeln(this.ports.signal, 'AT+KLBS=1');
 		});
+	}
+
+	/**
+	 * GPSマルチユニットにSSL通信用の証明書を書き込みます。
+	 * @param {string[]} certificates CA files
+	 * @param {string} key_type ['ca' | 'client' | 'psk']
+	 * @returns {Promise<number>}
+	 */
+	async writeSSLCertificates(certificates, key_type) {
+		const type_num = ({ client: 1, ca: 2, psk: 3 })[key_type];
+		for (let i = 0; i < certificates.length; i++) {
+			const ssl_key = certificates[i].toString('hex');
+			const length = parseInt(Math.ceil(ssl_key.length / 200) + '00') * 2;
+			const data = (ssl_key + 'F'.repeat(length - ssl_key.length)).match(/.{200}/g);
+			for (let j = 0; j < data.length; j++) {
+				await writeln(this.ports.signal,
+					`AT+KSETSSL=1,${type_num},${i + 1},${ssl_key.length / 2},${j + 1},${data[j]}`);
+			}
+		}
+		return certificates.length;
+	}
+
+
+	/**
+	 * GPSマルチユニットにCA証明書を書き込みます。
+	 * @param {string[]} certificates CA files
+	 * @returns {Promise<bool>}
+	 * 
+	 * @example <caption>ファイルから証明書を読み込みGPSマルチユニットに書き込む</caption>
+	 * const certificates = fs.readdirSync(dir)
+	 *                        .filter(filename => filename[0] != '.')
+	 *                        .map(filename => fs.readFileSync(filename));
+	 * await gps_unit.writeCACertificates(certificates, true);
+	 */
+	async writeCACertificates(certificates) {
+		if (this.status) await this.status.set_data_enable().catch(_ => console.log(_));
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await this.writeSSLCertificates(certificates, 'ca');
+		await writeln(this.ports.signal, 'AT+KSETSSL=9');
+		return true;
+	}
+
+
+	/**
+	 * GPSマルチユニットにクライアント証明書とその秘密鍵を書き込みます。
+	 * @param {string} client_key クライアント証明書
+	 * @param {string} private_key 秘密鍵
+	 * @param {string} [passphrase] パスフレーズ
+	 * @returns {Promise<bool>}
+	 * 
+	 * @example <caption>ファイルから証明書を読み込みGPSマルチユニットに書き込む</caption>
+	 * const client = fs.readFileSync(client_key_path);
+	 * const private = fs.readFileSync(private_key_path);
+	 * const passphrase = '****'; // Possible to undefined
+	 * await gps_unit.writeClientCertificates(client, private, passphrase);
+	 */
+	async writeClientCertificates(client_key, private_key, passphrase) {
+		if (this.status) await status.set_data_enable();
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await this.writeSSLCertificates([client_key, private_key], 'client');
+		if (passphrase) await writeln(this.ports.signal, `AT+KSETSSL=1,1,3,,,,${passphrase}`);
+		await writeln(this.ports.signal, 'AT+KSETSSL=9');
+
+		return true;
+	}
+
+
+	/**
+	 * GPSマルチユニットにPSKを書き込みます。
+	 * @param {string} psk "Identity_1:psk_key1"
+	 * @returns {Promise<bool>}
+	 */
+	async writePSKCertificates(psk) {
+		if (this.status) await status.set_data_enable();
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await this.writeSSLCertificates([psk], 'psk');
+		await writeln(this.ports.signal, 'AT+KSETSSL=9');
+
+		return true;
+	}
+
+
+	/**
+	 * GPSマルチユニットからクライアント証明書を削除します。
+	 * @returns {Promise<bool>}
+	 */
+	async deleteClientCertificates() {
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await writeln(this.ports.signal, `AT+KSETSSL=0,1`);
+		return true;
+	}
+
+
+	/**
+	 * GPSマルチユニットからCA証明書を削除します。
+	 * @returns {Promise<bool>}
+	 */
+	async deleteCACertificates() {
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await writeln(this.ports.signal, `AT+KSETSSL=0,2`);
+		return true;
+	}
+
+
+	/**
+	 * GPSマルチユニットからPSK証明書を削除します。
+	 * @returns {Promise<bool>}
+	 */
+	async deletePSKCertificates() {
+		await writeln(this.ports.signal, 'AT+CFUN=0');
+		await writeln(this.ports.signal, 'AT+KLBS=0');
+		await sleep(2000);
+
+		await writeln(this.ports.signal, `AT+KSETSSL=0,3`);
+		return true;
 	}
 };
 
