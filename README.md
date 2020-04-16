@@ -1,5 +1,7 @@
 # LU1CM0xx library for UART
 
+[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
+
 This library is used for products that can be used only in Japan. Therefore, please forgive the explanation in Japanese.
 
 ## Summary
@@ -8,12 +10,12 @@ This library is used for products that can be used only in Japan. Therefore, ple
 
 ## Supported platforms
 Raspberry Pi, Node.js v10.15.2で確認。
-[serialport][serialport]で動作するUARTが2系統と、[rpi-gpio][gpio]で制御可能なGPIOが⑧本必要です。
+[serialport][serialport]で動作するUARTが2系統と、[rpi-gpio][gpio]で制御可能なGPIOが8本必要です。
 
 ## Getting started
 ### Hardware
 UART2系統モデムモードでキッティングされたLU1CM0xxシリーズを下図のように配線してください。
-キッティングは、メーカーサポートでお願いします。
+キッティングに関しては、メーカーサポートでお願いします。
 
 なおサンプルでは、下表のようにGPIOと接続し、Raspberry Piのブートコンフィグを次のように行っています。
 各自の環境に合わせて、[マニュアル][manual]をもとにカスタムしてください。
@@ -52,7 +54,11 @@ dtoverlay=uart4,ctsrts
 dtoverlay=uart3
 ```
 
-### Config
+### Setup
+```bash
+npm install --save lu1cm0xx
+```
+
 ポートコンフィグファイル
 ```json:port_config.json
 {
