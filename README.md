@@ -1,5 +1,7 @@
 # LU1CM0xx library for UART
 
+[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
+
 This library is used for products that can be used only in Japan. Therefore, please forgive the explanation in Japanese.
 
 ## Summary
