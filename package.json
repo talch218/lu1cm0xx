@@ -13,7 +13,7 @@
   "dependencies": {
     "@serialport/parser-readline": "^8.0.6",
     "rpi-gpio": "^2.1.5",
-    "serialport": "^8.0.7"
+    "serialport": "^11.0.0"
   },
   "devDependencies": {
     "can-npm-publish": "^1.3.2"
